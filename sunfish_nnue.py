@@ -185,7 +185,6 @@ class Position(namedtuple("Position", "board score wf bf wc bc ep kp")):
                     if i == H1 and self.board[j + W] == "K" and self.wc[1]:
                         yield Move(j + W, j + E, "")
 
-    @contextmanager
     def rotate(self, nullmove=False):
         # Rotates the board, preserving enpassant.
         # A nullmove is nearly a rotate, but it always clear enpassant.
@@ -197,68 +196,54 @@ class Position(namedtuple("Position", "board score wf bf wc bc ep kp")):
         )
         return pos._replace(score=pos.compute_value())
 
-    def put(self, i, p, stack=None):
-        q = self.board[i]
-        # TODO: I could update a zobrist hash here as well...
-        # Then we are really becoming a real chess program...
-        self.board[i] = p
-        self.wf += pst[p][i] - pst[q][i]
-        self.bf += pst[p.swapcase()][119 - i] - pst[q.swapcase()][119 - i]
-        if stack:
-            self.stack.append((i, q))
 
-    @contextmanager
     def move(self, move):
         i, j, pr = move
         p, q = self.board[i], self.board[j]
-        # We make this stack to keep track of what we change
-        stack = []
-
-        old_ep, old_kp, old_wc, old_bc = self.ep, self.kp, self.ec, self.bc
-        self.ep, self.kp = 0, 0
-
+        
+        # Helper function to update position
+        def put(pos, i, p):
+            return pos._replace(
+                board=pos.board[:i] + p + pos.board[i + 1:],
+                wf=pos.wf + pst[p][i] - pst[pos.board[i]][i],
+                bf=pos.bf + pst[p.swapcase()][119 - i] - pst[pos.board[i].swapcase()][119 - i],
+            )
+        
+        # Copy variables and reset ep and kp
+        pos = self._replace(ep=0, kp=0)
+        
         # Actual move
-        self.put(j, p, stack)
-        self.put(i, ".", stack)
-
+        pos = put(pos, j, p)
+        pos = put(pos, i, ".")
+        
         # Castling rights, we move the rook or capture the opponent's
-        if i == A1: self.wc=(False, self.wc[1])
-        if i == H1: self.wc=(self.wc[0], False)
-        if j == A8: self.bc=(self.bc[0], False)
-        if j == H8: self.bc=(False, self.bc[1])
-
+        if i == A1: pos = pos._replace(wc=(False, pos.wc[1]))
+        if i == H1: pos = pos._replace(wc=(pos.wc[0], False))
+        if j == A8: pos = pos._replace(bc=(pos.bc[0], False))
+        if j == H8: pos = pos._replace(bc=(False, pos.bc[1]))
+        
         # Capture the moving king. Actually we get an extra free king. Same thing.
         if abs(j - self.kp) < 2:
-            self.put(self.board.find('k'), ' ')
-
+            pos = put(pos, self.kp, "K")
+        
         # Castling
         if p == "K":
-            self.wc=(False, False)
+            pos = pos._replace(wc=(False, False))
             if abs(j - i) == 2:
-                self.kp=(i + j) // 2
-                self.put(A1 if j < i else H1, ".", stack)
-                self.put((i + j) // 2, "R", stack)
-
+                pos = pos._replace(kp=(i + j) // 2)
+                pos = put(pos, A1 if j < i else H1, ".")
+                pos = put(pos, (i + j) // 2, "R")
+        
         # Pawn promotion, double move and en passant capture
         if p == "P":
             if A8 <= j <= H8:
-                self.put(j, pr, stack)
+                pos = put(pos, j, pr)
             if j - i == 2 * N:
-                self.ep = i + N
+                pos = pos._replace(ep=i + N)
             if j == self.ep:
-                self.put(j + S, ".", stack)
-
-        # Should this also be a context manager then?
-        self.rotate()
-        yield self
-        self.rotate()
-
-        # Now unmove by putting the pieces back
-        for i, q in self.stack[::-1]:
-            self.put(i, q)
-
-        # And restore the fields
-        self.ep, self.kp, self.ec, self.bc = old_ep, old_kp, old_wc, old_bc
+                pos = put(pos, j + S, ".")
+        
+        return pos.rotate()
 
     def is_capture(self, move):
         # The original sunfish just checked that the evaluation of a move
@@ -284,7 +269,7 @@ class Position(namedtuple("Position", "board score wf bf wc bc ep kp")):
         #    print(f"from model: {score}, pieces: {wf[0]-bf[0]}")
         #    print(f"{wf=}")
         #    print(f"{bf=}")
-        return int((score + model["scale"] * (wf[0] - bf[0])) * 360)
+        return int((score.item() + model["scale"] * (wf[0] - bf[0])) * 360)
 
     def hash(self):
         # return self.board
@@ -451,7 +436,7 @@ class MutablePosition(namedtuple("Position", "board score wf bf wc bc ep kp")):
         #    print(f"from model: {score}, pieces: {wf[0]-bf[0]}")
         #    print(f"{wf=}")
         #    print(f"{bf=}")
-        return int((score + model["scale"] * (wf[0] - bf[0])) * 360)
+        return int((score.item() + model["scale"] * (wf[0] - bf[0])) * 360)
 
     def hash(self):
         # return self.board
@@ -657,7 +642,8 @@ def render(i):
 
 
 wf, bf = features(initial)
-hist = [Position(initial, 0, wf, bf, (True, True), (True, True), 0, 0)]
+pos = Position(initial, 0, wf, bf, (True, True), (True, True), 0, 0)
+hist = [pos._replace(score=pos.compute_value())]
 searcher = Searcher()
 
 

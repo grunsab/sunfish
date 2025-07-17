@@ -57,3 +57,8 @@ profile.pstats
 
 # Vim
 *.swp
+
+# CCRL dataset
+nnue/training/ccrl_*.pgn
+nnue/training/data/
+nnue/training/processed_data/
