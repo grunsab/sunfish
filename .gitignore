@@ -1,7 +1,7 @@
 *.py[cod]
 .DS_Store
 engines.json
-
+venv/
 
 # Sunfish files
 *.log

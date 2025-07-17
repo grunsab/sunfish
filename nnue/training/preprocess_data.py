@@ -86,22 +86,20 @@ def extract_training_positions(pgn_files, max_games=10000, max_positions_per_gam
                     if move_count >= max_positions_per_game:
                         break
                     
-                    # Skip opening (first 10 moves) and endgame (last 10 moves)
-                    if move_count >= 10 and len(list(game.mainline_moves())) - move_count >= 10:
-                        # Get position before move
-                        sunfish_board = board_to_sunfish_string(board)
-                        
-                        # Use game result as position evaluation (simplified)
-                        # In a more sophisticated approach, you'd use an engine to evaluate each position
-                        position_value = game_result
-                        if not board.turn:  # Black to move
-                            position_value = -position_value
-                        
-                        positions.append({
-                            'board': sunfish_board,
-                            'value': position_value,
-                            'turn': board.turn
-                        })
+                    # Get position before move
+                    sunfish_board = board_to_sunfish_string(board)
+                    
+                    # Use game result as position evaluation (simplified)
+                    # In a more sophisticated approach, you'd use an engine to evaluate each position
+                    position_value = game_result
+                    if not board.turn:  # Black to move
+                        position_value = -position_value
+                    
+                    positions.append({
+                        'board': sunfish_board,
+                        'value': position_value,
+                        'turn': board.turn
+                    })
                     
                     board.push(move)
                     move_count += 1

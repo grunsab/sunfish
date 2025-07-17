@@ -20,9 +20,7 @@ def download_ccrl_games(data_dir="data"):
     
     # CCRL download URLs - these are example URLs, the actual ones may vary
     # The user will need to manually download from:
-    # https://www.computerchess.org.uk/ccrl/4040/games.html
-    # https://computerchess.org.uk/ccrl/404/games.html
-    
+    # https://lczero.org/blog/2018/09/a-standard-dataset/    
     print("=" * 60)
     print("CCRL Dataset Download Instructions")
     print("=" * 60)
@@ -30,8 +28,7 @@ def download_ccrl_games(data_dir="data"):
     print("This script helps prepare for CCRL dataset download.")
     print("You need to manually download PGN files from:")
     print()
-    print("1. CCRL 40/15: https://www.computerchess.org.uk/ccrl/4040/games.html")
-    print("2. CCRL 40/4:  https://computerchess.org.uk/ccrl/404/games.html")
+    print("1. CCRL 40/40: [CCRL Dataset](https://lczero.org/blog/2018/09/a-standard-dataset/)")
     print()
     print("Download instructions:")
     print("- Download monthly PGN files or engine-specific files")
