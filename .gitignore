@@ -2,6 +2,7 @@
 .DS_Store
 engines.json
 venv/
+venv_3.9/
 
 # Sunfish files
 *.log

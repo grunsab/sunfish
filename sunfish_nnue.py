@@ -74,20 +74,6 @@ def features(board):
 # Our board is represented as a 120 character string. The padding allows for
 # fast detection of moves that don't stay within the board.
 A1, H1, A8, H8 = 91, 98, 21, 28
-initial = (
-    "         \n"  #   0 -  9
-    "         \n"  #  10 - 19
-    " rnbqkbnr\n"  #  20 - 29
-    " pppppppp\n"  #  30 - 39
-    " ........\n"  #  40 - 49
-    " ........\n"  #  50 - 59
-    " ........\n"  #  60 - 69
-    " ........\n"  #  70 - 79
-    " PPPPPPPP\n"  #  80 - 89
-    " RNBQKBNR\n"  #  90 - 99
-    "         \n"  # 100 -109
-    "         \n"  # 110 -119
-)
 
 # Lists of possible moves for each piece type.
 N, E, S, W = -10, 1, 10, -1
@@ -662,9 +648,10 @@ sys.exit()
 # minifier-hide end
 
 
-while True:
-    args = input().split()
-    if args[0] == "uci":
+if __name__ == "__main__":
+    while True:
+        args = input().split()
+        if args[0] == "uci":
         print(f"id name {version}")
         print("uciok")
 
