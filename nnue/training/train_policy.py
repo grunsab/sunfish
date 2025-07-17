@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import time
+import signal
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
 from functools import partial
@@ -122,8 +123,14 @@ def parse_pgn_games(pgn_file, max_games=None):
 
 def process_pgn_file_worker(args):
     """Worker function for multiprocessing"""
-    pgn_file, max_games_per_file = args
-    return parse_pgn_games(str(pgn_file), max_games_per_file)
+    try:
+        pgn_file, max_games_per_file = args
+        return parse_pgn_games(str(pgn_file), max_games_per_file)
+    except (BrokenPipeError, KeyboardInterrupt):
+        return []
+    except Exception as e:
+        print(f"Worker error processing {args[0]}: {e}")
+        return []
 
 def sunfish_pos_to_square(pos):
     """Convert sunfish position (21-98) to 0-63 square index"""
@@ -243,8 +250,17 @@ def chess_move_to_sunfish(chess_move, board):
     
     return Move(sunfish_from, sunfish_to, promotion)
 
+def signal_handler(signum, frame):
+    """Handle interruption signals gracefully"""
+    print(f"\nReceived signal {signum}, shutting down gracefully...")
+    sys.exit(0)
+
 def create_training_data_from_ccrl(data_dir, output_file, max_games_per_file=100, use_train_data=True, num_workers=None):
     """Create training data from CCRL data structure"""
+    # Set up signal handling
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     print(f"\n=== Creating Training Data from CCRL ===")
     print(f"Data directory: {data_dir}")
     print(f"Max games per file: {max_games_per_file}")
@@ -273,20 +289,37 @@ def create_training_data_from_ccrl(data_dir, output_file, max_games_per_file=100
     # Prepare arguments for workers
     worker_args = [(pgn_file, max_games_per_file) for pgn_file in pgn_files]
     
-    # Process files in parallel
-    print(f"\nProcessing {len(pgn_files)} files in parallel...")
+    # Process files with reduced parallelism to avoid BrokenPipeError
+    print(f"\nProcessing {len(pgn_files)} files...")
     start_time = time.time()
     
-    with Pool(num_workers) as pool:
-        # Use map with chunksize for better performance
-        chunksize = max(1, len(pgn_files) // (num_workers * 4))
-        results = pool.map(process_pgn_file_worker, worker_args, chunksize=chunksize)
+    # Use smaller batch sizes and reduce worker count to prevent pipe overflow
+    effective_workers = min(num_workers, 4)  # Limit workers to prevent pipe issues
+    batch_size = max(1, len(pgn_files) // 10)  # Process in smaller batches
     
-    # Combine results from all workers
-    for i, examples in enumerate(results):
-        all_examples.extend(examples)
-        if (i + 1) % 10 == 0:
-            print(f"  Combined results from {i + 1}/{len(pgn_files)} files, total examples: {len(all_examples)}")
+    for batch_start in range(0, len(pgn_files), batch_size):
+        batch_end = min(batch_start + batch_size, len(pgn_files))
+        batch_files = worker_args[batch_start:batch_end]
+        
+        print(f"Processing batch {batch_start//batch_size + 1}: files {batch_start+1} to {batch_end}")
+        
+        try:
+            with Pool(effective_workers) as pool:
+                batch_results = pool.map(process_pgn_file_worker, batch_files)
+                
+                # Combine results from this batch
+                for examples in batch_results:
+                    if examples:  # Only extend if we have valid examples
+                        all_examples.extend(examples)
+                        
+        except (BrokenPipeError, KeyboardInterrupt) as e:
+            print(f"Batch processing interrupted: {e}")
+            continue  # Skip this batch and try the next one
+        except Exception as e:
+            print(f"Error during batch processing: {e}")
+            continue  # Skip this batch and try the next one
+        
+        print(f"  Batch completed, total examples so far: {len(all_examples)}")
     
     elapsed_time = time.time() - start_time
     print(f"\nProcessing completed in {elapsed_time:.2f} seconds")
